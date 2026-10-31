@@ -20,10 +20,12 @@
     "hono": "4.13.5",
     "image-size": "1.2.1",
     "jose": "5.10.0",
+    "pg": "^8.23.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "20.6.1",
+    "@types/pg": "^8.23.1",
     "tsx": "4.7.0",
     "typescript": "5.5.2",
     "vitest": "^4.1.11"

@@ -6,6 +6,7 @@ import { logger } from './middlewares/logger';
 import { config } from './config/config';
 import { requireAuth } from './middlewares/auth.middleware';
 import { rateLimiter } from './middlewares/rate-limit.middleware';
+import { requireOrderAccess } from './middlewares/require-order-access.middleware';
 import { registerPaymentReceiptsRoutes } from './routes/payment-receipts.routes';
 
 const app = new Hono();
@@ -74,6 +75,9 @@ apiV1.get('/doc', swaggerUI({ url: '/api/v1/openapi.json' }));
 const paymentsRateLimiter = rateLimiter({ windowMs: 60_000, max: 100 });
 apiV1.use('/purchase-orders/*', paymentsRateLimiter);
 apiV1.use('/purchase-orders/*', requireAuth());
+// Only the owner of the order's project may touch its receipts. The
+// wildcard also matches the bare '/payments' collection path.
+apiV1.use('/purchase-orders/:orderId/payments/*', requireOrderAccess());
 registerPaymentReceiptsRoutes(apiV1);
 
 app.route('/api/v1', apiV1);

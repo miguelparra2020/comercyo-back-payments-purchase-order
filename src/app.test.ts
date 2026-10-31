@@ -11,8 +11,11 @@ vi.mock('./config/r2', () => ({
   getSignedUrlTtlSeconds: () => 900,
 }));
 
-const RECEIPT = '/api/v1/purchase-orders/PO-42/payments/3f2504e0-4f89-41d3-9a0c-0305e82c3301';
-const COLLECTION = '/api/v1/purchase-orders/PO-42/payments';
+const RECEIPT = '/api/v1/purchase-orders/42/payments/3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+const COLLECTION = '/api/v1/purchase-orders/42/payments';
+
+const dbQuery = vi.fn();
+vi.mock('./config/db', () => ({ getUsersDb: () => ({ query: dbQuery }) }));
 
 import app from './app';
 
@@ -36,6 +39,8 @@ function signToken(payload: Record<string, unknown>) {
 describe('app wiring', () => {
   beforeEach(() => {
     send.mockReset();
+    dbQuery.mockReset();
+    dbQuery.mockResolvedValue({ rows: [{ id_own_project: 12 }] });
     process.env.JWT_SECRET = SECRET;
     process.env.JWT_AUDIENCE = AUDIENCE;
   });
@@ -115,6 +120,33 @@ describe('app wiring', () => {
     });
     expect(res.status).toBe(401);
     expect(send).not.toHaveBeenCalled();
+  });
+  it('returns 404 and never touches R2 when the user does not own the order project', async () => {
+    const token = await signToken({ id_user: 99, session_id: 'session-1' });
+    dbQuery.mockResolvedValueOnce({ rows: [] });
+
+    const res = await app.request(RECEIPT, { headers: { Authorization: `Bearer ${token}` } });
+
+    expect(res.status).toBe(404);
+    expect(dbQuery).toHaveBeenCalledWith(expect.stringContaining('FROM purchase_orders'), ['42', 99]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('applies the ownership check to uploads and listing too', async () => {
+    const token = await signToken({ id_user: 99, session_id: 'session-1' });
+    dbQuery.mockResolvedValue({ rows: [] });
+    const headers = { Authorization: `Bearer ${token}` };
+
+    expect((await app.request(COLLECTION, { headers })).status).toBe(404);
+    expect((await app.request(COLLECTION, { method: 'POST', headers, body: new FormData() })).status).toBe(404);
+    expect((await app.request(RECEIPT, { method: 'PUT', headers, body: new FormData() })).status).toBe(404);
+    expect((await app.request(RECEIPT, { method: 'DELETE', headers })).status).toBe(404);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('checks auth before ownership: no token means no database query', async () => {
+    expect((await app.request(COLLECTION)).status).toBe(401);
+    expect(dbQuery).not.toHaveBeenCalled();
   });
 
   it('returns 404 with the request path for an unknown route', async () => {

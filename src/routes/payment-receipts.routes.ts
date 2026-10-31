@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import type { AuthVariables } from '../middlewares/auth.middleware';
+import { ORDER_ID_PATTERN } from '../middlewares/require-order-access.middleware';
 import {
   getR2Client,
   getR2Bucket,
@@ -63,7 +64,8 @@ const DeleteResponseSchema = z.object({
 
 const orderIdSchema = z
   .string()
-  .regex(/^[\w-]{1,64}$/, 'orderId must be 1-64 letters, numbers, underscores or hyphens');
+  .regex(ORDER_ID_PATTERN, 'orderId must be a positive integer')
+  .openapi({ description: 'purchase_orders.id_purchase_order', example: '123' });
 
 const OrderParamSchema = z.object({ orderId: orderIdSchema });
 

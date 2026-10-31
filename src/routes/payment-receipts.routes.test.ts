@@ -23,7 +23,7 @@ import type { AuthVariables } from '../middlewares/auth.middleware';
 import { MAX_FILE_SIZE_BYTES } from '../utils/image-validation.utils';
 
 const KEY = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
-const BASE = '/purchase-orders/PO-42/payments';
+const BASE = '/purchase-orders/42/payments';
 
 function buildApp() {
   const app = new OpenAPIHono<{ Variables: AuthVariables }>({
@@ -76,8 +76,8 @@ describe('payment receipts routes', () => {
         success: true,
         data: {
           key: expect.stringMatching(/^[0-9a-f-]{36}$/),
-          orderId: 'PO-42',
-          url: expect.stringContaining('https://signed.test/purchase-orders/PO-42/'),
+          orderId: '42',
+          url: expect.stringContaining('https://signed.test/purchase-orders/42/'),
           expiresIn: 900,
           contentType: 'image/png',
           size: 33,
@@ -90,7 +90,7 @@ describe('payment receipts routes', () => {
       expect(command).toBeInstanceOf(PutObjectCommand);
       expect(command.input).toMatchObject({
         Bucket: 'paymentspurchseordes',
-        Key: `purchase-orders/PO-42/${body.data.key}`,
+        Key: `purchase-orders/42/${body.data.key}`,
         ContentType: 'image/png',
         Metadata: { 'uploaded-by': '7', 'original-name': 'comprobante%20pago.png' },
       });
@@ -132,12 +132,12 @@ describe('payment receipts routes', () => {
     it('lists every receipt of the order across pages, oldest first, with signed URLs', async () => {
       send
         .mockResolvedValueOnce({
-          Contents: [{ Key: `purchase-orders/PO-42/${KEY}`, Size: 10, LastModified: new Date('2026-02-01T00:00:00Z') }],
+          Contents: [{ Key: `purchase-orders/42/${KEY}`, Size: 10, LastModified: new Date('2026-02-01T00:00:00Z') }],
           IsTruncated: true,
           NextContinuationToken: 'next',
         })
         .mockResolvedValueOnce({
-          Contents: [{ Key: 'purchase-orders/PO-42/older', Size: 5, LastModified: new Date('2026-01-01T00:00:00Z') }],
+          Contents: [{ Key: 'purchase-orders/42/older', Size: 5, LastModified: new Date('2026-01-01T00:00:00Z') }],
           IsTruncated: false,
         });
 
@@ -149,16 +149,16 @@ describe('payment receipts routes', () => {
         data: [
           {
             key: 'older',
-            orderId: 'PO-42',
-            url: 'https://signed.test/purchase-orders/PO-42/older?sig=1',
+            orderId: '42',
+            url: 'https://signed.test/purchase-orders/42/older?sig=1',
             expiresIn: 900,
             size: 5,
             lastModified: '2026-01-01T00:00:00.000Z',
           },
           {
             key: KEY,
-            orderId: 'PO-42',
-            url: `https://signed.test/purchase-orders/PO-42/${KEY}?sig=1`,
+            orderId: '42',
+            url: `https://signed.test/purchase-orders/42/${KEY}?sig=1`,
             expiresIn: 900,
             size: 10,
             lastModified: '2026-02-01T00:00:00.000Z',
@@ -167,7 +167,7 @@ describe('payment receipts routes', () => {
       });
 
       expect(send.mock.calls[0][0]).toBeInstanceOf(ListObjectsV2Command);
-      expect(send.mock.calls[0][0].input.Prefix).toBe('purchase-orders/PO-42/');
+      expect(send.mock.calls[0][0].input.Prefix).toBe('purchase-orders/42/');
       expect(send.mock.calls[1][0].input.ContinuationToken).toBe('next');
     });
 
@@ -195,8 +195,8 @@ describe('payment receipts routes', () => {
         success: true,
         data: {
           key: KEY,
-          orderId: 'PO-42',
-          url: `https://signed.test/purchase-orders/PO-42/${KEY}?sig=1`,
+          orderId: '42',
+          url: `https://signed.test/purchase-orders/42/${KEY}?sig=1`,
           expiresIn: 900,
           contentType: 'image/png',
           size: 1234,
@@ -242,7 +242,7 @@ describe('payment receipts routes', () => {
       expect(body.data.key).toBe(KEY);
       expect(send.mock.calls[0][0]).toBeInstanceOf(HeadObjectCommand);
       expect(send.mock.calls[1][0]).toBeInstanceOf(PutObjectCommand);
-      expect(send.mock.calls[1][0].input.Key).toBe(`purchase-orders/PO-42/${KEY}`);
+      expect(send.mock.calls[1][0].input.Key).toBe(`purchase-orders/42/${KEY}`);
     });
 
     it('returns 404 and writes nothing when the receipt does not exist', async () => {
@@ -270,9 +270,9 @@ describe('payment receipts routes', () => {
       const res = await buildApp().request(`${BASE}/${KEY}`, { method: 'DELETE' });
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ success: true, data: { key: KEY, orderId: 'PO-42' } });
+      expect(await res.json()).toEqual({ success: true, data: { key: KEY, orderId: '42' } });
       expect(send.mock.calls[1][0]).toBeInstanceOf(DeleteObjectCommand);
-      expect(send.mock.calls[1][0].input.Key).toBe(`purchase-orders/PO-42/${KEY}`);
+      expect(send.mock.calls[1][0].input.Key).toBe(`purchase-orders/42/${KEY}`);
     });
 
     it('returns 404 when the receipt does not exist', async () => {
