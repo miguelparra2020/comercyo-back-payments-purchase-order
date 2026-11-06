@@ -64,6 +64,28 @@ describe('app wiring', () => {
     }
   });
 
+  it('exposes the sales-order receipt routes (abonos de venta) with Bearer security', async () => {
+    const doc = await (await app.request('/api/v1/openapi.json')).json();
+    for (const path of ['/sales-orders/{orderId}/payments', '/sales-orders/{orderId}/payments/{key}']) {
+      expect(doc.paths[path]).toBeDefined();
+      for (const operation of Object.values(doc.paths[path]) as any[]) {
+        expect(operation.security).toEqual([{ Bearer: [] }]);
+      }
+    }
+  });
+
+  it('requires auth and checks access to the sales order before touching R2', async () => {
+    expect((await app.request('/api/v1/sales-orders/42/payments')).status).toBe(401);
+
+    const token = await signToken({ id_user: 7, session_id: 'session-1' });
+    dbQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await app.request('/api/v1/sales-orders/42/payments', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(404);
+    expect(dbQuery.mock.calls[0][0]).toMatch(/FROM sales_orders so/);
+    expect(dbQuery.mock.calls[0][1]).toEqual(['42', 7]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('rejects unauthenticated requests to POST payments', async () => {
     expect((await app.request(COLLECTION, { method: 'POST' })).status).toBe(401);
   });

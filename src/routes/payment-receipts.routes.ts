@@ -15,6 +15,7 @@ import {
   orderPrefix,
   buildSignedUrl,
   getSignedUrlTtlSeconds,
+  type OrderKind,
 } from '../config/r2';
 import {
   validateImage,
@@ -65,7 +66,7 @@ const DeleteResponseSchema = z.object({
 const orderIdSchema = z
   .string()
   .regex(ORDER_ID_PATTERN, 'orderId must be a positive integer')
-  .openapi({ description: 'purchase_orders.id_purchase_order', example: '123' });
+  .openapi({ description: 'purchase_orders.id_purchase_order o sales_orders.id_sales_order', example: '123' });
 
 const OrderParamSchema = z.object({ orderId: orderIdSchema });
 
@@ -135,11 +136,17 @@ const parseUpload = async (c: Context): Promise<ParsedUpload> => {
   return { ok: true, buffer, file, width: result.width, height: result.height };
 };
 
-const putReceipt = async (c: AuthContext, orderId: string, key: string, upload: ParsedUpload & { ok: true }) => {
+const putReceipt = async (
+  c: AuthContext,
+  kind: OrderKind,
+  orderId: string,
+  key: string,
+  upload: ParsedUpload & { ok: true }
+) => {
   await getR2Client().send(
     new PutObjectCommand({
       Bucket: getR2Bucket(),
-      Key: toObjectKey(orderId, key),
+      Key: toObjectKey(orderId, key, kind),
       Body: upload.buffer,
       ContentType: upload.file.type,
       Metadata: {
@@ -152,7 +159,7 @@ const putReceipt = async (c: AuthContext, orderId: string, key: string, upload: 
   return {
     key,
     orderId,
-    url: await buildSignedUrl(orderId, key),
+    url: await buildSignedUrl(orderId, key, kind),
     expiresIn: getSignedUrlTtlSeconds(),
     contentType: upload.file.type,
     size: upload.buffer.byteLength,
@@ -162,10 +169,10 @@ const putReceipt = async (c: AuthContext, orderId: string, key: string, upload: 
 };
 
 // Returns the HeadObject output, or null when the receipt does not exist.
-const headReceipt = async (orderId: string, key: string) => {
+const headReceipt = async (kind: OrderKind, orderId: string, key: string) => {
   try {
     return await getR2Client().send(
-      new HeadObjectCommand({ Bucket: getR2Bucket(), Key: toObjectKey(orderId, key) })
+      new HeadObjectCommand({ Bucket: getR2Bucket(), Key: toObjectKey(orderId, key, kind) })
     );
   } catch (err) {
     if (isNotFoundError(err)) return null;
@@ -173,15 +180,22 @@ const headReceipt = async (orderId: string, key: string) => {
   }
 };
 
-export const registerPaymentReceiptsRoutes = (apiV1: any) => {
-  const collectionPath = '/purchase-orders/{orderId}/payments';
-  const itemPath = '/purchase-orders/{orderId}/payments/{key}';
+const ORDER_LABEL: Record<OrderKind, string> = { purchase: 'purchase order', sales: 'sales order' };
+
+// kind 'purchase': /purchase-orders/... (pagos de la factura de compra).
+// kind 'sales':    /sales-orders/...    (abonos de la factura de venta), misma
+// carpeta privada del bucket bajo sales-orders/{orderId}/.
+export const registerPaymentReceiptsRoutes = (apiV1: any, kind: OrderKind = 'purchase') => {
+  const base = kind === 'purchase' ? '/purchase-orders' : '/sales-orders';
+  const label = ORDER_LABEL[kind];
+  const collectionPath = `${base}/{orderId}/payments`;
+  const itemPath = `${base}/{orderId}/payments/{key}`;
   const fileBody = { body: { content: { 'multipart/form-data': { schema: FileBodySchema } } } };
 
   const uploadRoute = createRoute({
     method: 'post',
     path: collectionPath,
-    summary: 'Upload a payment receipt image for a purchase order',
+    summary: `Upload a payment receipt image for a ${label}`,
     request: { params: OrderParamSchema, ...fileBody },
     responses: { 201: { description: 'Uploaded', content: json(UploadResponseSchema) }, ...errorResponses },
     ...routeDefaults,
@@ -190,7 +204,7 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
   const listRoute = createRoute({
     method: 'get',
     path: collectionPath,
-    summary: 'List the payment receipts of a purchase order',
+    summary: `List the payment receipts of a ${label}`,
     request: { params: OrderParamSchema },
     responses: { 200: { description: 'Receipts', content: json(ListResponseSchema) }, ...errorResponses },
     ...routeDefaults,
@@ -235,7 +249,7 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
     ...routeDefaults,
   });
 
-  // Caller is responsible for applying requireAuth() to '/purchase-orders/*'
+  // Caller is responsible for applying requireAuth() to '/purchase-orders/*' (or '/sales-orders/*')
   // before this registration - kept out of this function so route wiring
   // stays testable with a stand-in auth context.
   apiV1.openapi(uploadRoute, async (c: AuthContext) => {
@@ -243,13 +257,13 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
     const upload = await parseUpload(c);
     if (upload.ok === false) return upload.response;
 
-    const data = await putReceipt(c, orderId, generateImageKey(), upload);
+    const data = await putReceipt(c, kind, orderId, generateImageKey(), upload);
     return c.json({ success: true, data }, 201);
   });
 
   apiV1.openapi(listRoute, async (c: AuthContext) => {
     const orderId = c.req.param('orderId');
-    const prefix = orderPrefix(orderId);
+    const prefix = orderPrefix(orderId, kind);
     const client = getR2Client();
 
     const objects: { Key?: string; Size?: number; LastModified?: Date }[] = [];
@@ -276,7 +290,7 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
           return {
             key,
             orderId,
-            url: await buildSignedUrl(orderId, key),
+            url: await buildSignedUrl(orderId, key, kind),
             expiresIn,
             size: o.Size ?? 0,
             lastModified: (o.LastModified ?? new Date()).toISOString(),
@@ -290,7 +304,7 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
   apiV1.openapi(getRoute, async (c: AuthContext) => {
     const orderId = c.req.param('orderId');
     const key = c.req.param('key');
-    const head = await headReceipt(orderId, key);
+    const head = await headReceipt(kind, orderId, key);
     if (!head) return notFound(c);
 
     const uploadedBy = Number(head.Metadata?.['uploaded-by']);
@@ -300,7 +314,7 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
         data: {
           key,
           orderId,
-          url: await buildSignedUrl(orderId, key),
+          url: await buildSignedUrl(orderId, key, kind),
           expiresIn: getSignedUrlTtlSeconds(),
           contentType: head.ContentType ?? 'application/octet-stream',
           size: head.ContentLength ?? 0,
@@ -316,22 +330,22 @@ export const registerPaymentReceiptsRoutes = (apiV1: any) => {
   apiV1.openapi(replaceRoute, async (c: AuthContext) => {
     const orderId = c.req.param('orderId');
     const key = c.req.param('key');
-    if (!(await headReceipt(orderId, key))) return notFound(c);
+    if (!(await headReceipt(kind, orderId, key))) return notFound(c);
 
     const upload = await parseUpload(c);
     if (upload.ok === false) return upload.response;
 
-    const data = await putReceipt(c, orderId, key, upload);
+    const data = await putReceipt(c, kind, orderId, key, upload);
     return c.json({ success: true, data }, 200);
   });
 
   apiV1.openapi(deleteRoute, async (c: AuthContext) => {
     const orderId = c.req.param('orderId');
     const key = c.req.param('key');
-    if (!(await headReceipt(orderId, key))) return notFound(c);
+    if (!(await headReceipt(kind, orderId, key))) return notFound(c);
 
     await getR2Client().send(
-      new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: toObjectKey(orderId, key) })
+      new DeleteObjectCommand({ Bucket: getR2Bucket(), Key: toObjectKey(orderId, key, kind) })
     );
     return c.json({ success: true, data: { key, orderId } }, 200);
   });

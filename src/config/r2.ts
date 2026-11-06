@@ -2,9 +2,17 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { requiredEnv } from '../utils/env.utils';
 
-// Payment receipts live in a PRIVATE bucket, one folder per purchase order:
-//   purchase-orders/{orderId}/{receiptKey}
-export const R2_PREFIX = 'purchase-orders/';
+// Payment receipts live in a PRIVATE bucket, one folder per order:
+//   purchase-orders/{orderId}/{receiptKey}  (pagos de la factura de compra)
+//   sales-orders/{orderId}/{receiptKey}     (abonos de la factura de venta)
+export type OrderKind = 'purchase' | 'sales';
+
+export const R2_PREFIXES: Record<OrderKind, string> = {
+  purchase: 'purchase-orders/',
+  sales: 'sales-orders/',
+};
+
+export const R2_PREFIX = R2_PREFIXES.purchase;
 
 export const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
 
@@ -31,9 +39,10 @@ export const getR2Client = () => {
 
 export const getR2Bucket = () => requiredEnv('R2_BUCKET_NAME');
 
-export const orderPrefix = (orderId: string) => `${R2_PREFIX}${orderId}/`;
+export const orderPrefix = (orderId: string, kind: OrderKind = 'purchase') => `${R2_PREFIXES[kind]}${orderId}/`;
 
-export const toObjectKey = (orderId: string, key: string) => `${orderPrefix(orderId)}${key}`;
+export const toObjectKey = (orderId: string, key: string, kind: OrderKind = 'purchase') =>
+  `${orderPrefix(orderId, kind)}${key}`;
 
 export const getSignedUrlTtlSeconds = () => {
   const raw = Number(process.env.R2_SIGNED_URL_TTL_SECONDS);
@@ -42,9 +51,9 @@ export const getSignedUrlTtlSeconds = () => {
 
 // The bucket is private, so the only way a browser can fetch a receipt is
 // through a short-lived presigned GET URL. Signing is local (no network call).
-export const buildSignedUrl = (orderId: string, key: string) =>
+export const buildSignedUrl = (orderId: string, key: string, kind: OrderKind = 'purchase') =>
   getSignedUrl(
     getR2Client(),
-    new GetObjectCommand({ Bucket: getR2Bucket(), Key: toObjectKey(orderId, key) }),
+    new GetObjectCommand({ Bucket: getR2Bucket(), Key: toObjectKey(orderId, key, kind) }),
     { expiresIn: getSignedUrlTtlSeconds() }
   );
