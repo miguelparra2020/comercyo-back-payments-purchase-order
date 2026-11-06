@@ -33,6 +33,11 @@ describe('r2 config', () => {
     expect(toObjectKey('42', 'abc')).toBe('purchase-orders/42/abc');
   });
 
+  it('groups the receipts of sales orders in their own folder', () => {
+    expect(orderPrefix('42', 'sales')).toBe('sales-orders/42/');
+    expect(toObjectKey('42', 'abc', 'sales')).toBe('sales-orders/42/abc');
+  });
+
   it('defaults the signed URL TTL and honours a valid override', () => {
     expect(getSignedUrlTtlSeconds()).toBe(DEFAULT_SIGNED_URL_TTL_SECONDS);
     process.env.R2_SIGNED_URL_TTL_SECONDS = '60';

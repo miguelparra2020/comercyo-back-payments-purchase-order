@@ -80,6 +80,13 @@ apiV1.use('/purchase-orders/*', requireAuth());
 apiV1.use('/purchase-orders/:orderId/payments/*', requireOrderAccess());
 registerPaymentReceiptsRoutes(apiV1);
 
+// Abonos de la factura de venta: mismas rutas bajo /sales-orders, mismo bucket
+// privado (carpeta sales-orders/), y solo el dueño del proyecto del pedido.
+apiV1.use('/sales-orders/*', paymentsRateLimiter);
+apiV1.use('/sales-orders/*', requireAuth());
+apiV1.use('/sales-orders/:orderId/payments/*', requireOrderAccess(undefined, 'sales'));
+registerPaymentReceiptsRoutes(apiV1, 'sales');
+
 app.route('/api/v1', apiV1);
 
 // 404 handler
