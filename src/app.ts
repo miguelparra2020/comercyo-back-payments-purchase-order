@@ -30,7 +30,7 @@ app.use('*', cors({
   // Auth is a Bearer token, not cookies, so no request needs credentials
   // mode - and the fetch spec forbids Access-Control-Allow-Origin: * paired
   // with Access-Control-Allow-Credentials: true for a credentialed request.
-  credentials: config.cors.origin !== '*',
+  credentials: true,
 }));
 
 // Logger middleware

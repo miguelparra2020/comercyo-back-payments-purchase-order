@@ -1,4 +1,6 @@
-const corsOrigins = process.env.CORS_ORIGIN?.split(',').map(o => o.trim()).filter(Boolean) || ['*'];
+import { origenesPermitidos } from './cors';
+
+const corsOrigins = origenesPermitidos();
 
 export const config = {
   port: Number(process.env.PORT || 3001),
@@ -9,6 +11,6 @@ export const config = {
     // array as an explicit allow-list matched against the request's Origin
     // header - an array containing the literal string '*' never matches a
     // real origin. Collapse to the string form so a wildcard actually works.
-    origin: corsOrigins.includes('*') ? ('*' as const) : corsOrigins,
+    origin: corsOrigins,
   }
 } as const;
