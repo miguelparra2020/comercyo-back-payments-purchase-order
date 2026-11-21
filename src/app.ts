@@ -8,6 +8,7 @@ import { requireAuth } from './middlewares/auth.middleware';
 import { rateLimiter } from './middlewares/rate-limit.middleware';
 import { requireOrderAccess } from './middlewares/require-order-access.middleware';
 import { registerPaymentReceiptsRoutes } from './routes/payment-receipts.routes';
+import { registerDropiPayoutReceiptRoute } from './routes/dropi-payout-receipt.routes';
 
 const app = new Hono();
 const apiV1 = new OpenAPIHono({
@@ -86,6 +87,11 @@ apiV1.use('/sales-orders/*', paymentsRateLimiter);
 apiV1.use('/sales-orders/*', requireAuth());
 apiV1.use('/sales-orders/:orderId/payments/*', requireOrderAccess(undefined, 'sales'));
 registerPaymentReceiptsRoutes(apiV1, 'sales');
+
+// 2026-11-21: el dropshipper ve el comprobante de sus pagos (solo los suyos).
+apiV1.use('/dropi/*', paymentsRateLimiter);
+apiV1.use('/dropi/*', requireAuth());
+registerDropiPayoutReceiptRoute(apiV1);
 
 app.route('/api/v1', apiV1);
 
