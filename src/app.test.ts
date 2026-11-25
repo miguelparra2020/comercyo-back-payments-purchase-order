@@ -40,7 +40,7 @@ describe('app wiring', () => {
   beforeEach(() => {
     send.mockReset();
     dbQuery.mockReset();
-    dbQuery.mockResolvedValue({ rows: [{ id_own_project: 12 }] });
+    dbQuery.mockResolvedValue({ rows: [{ id_own_project: 12, acceso: { duenio: true } }] });
     process.env.JWT_SECRET = SECRET;
     process.env.JWT_AUDIENCE = AUDIENCE;
   });

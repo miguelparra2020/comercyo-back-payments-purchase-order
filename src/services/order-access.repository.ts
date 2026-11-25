@@ -1,21 +1,19 @@
 import type { Queryable } from '../config/db';
 import type { OrderKind } from '../config/r2';
+import type { Acceso } from '../lib/permisos';
 
-// "Belonging to a project" today means owning it: own_projects has no
-// members table, only created_by_email (see comercyo-back-company-projects).
-// The order, its project and the user must all be live (not soft-deleted).
+// El dueño del proyecto o un miembro activo de su equipo (permisos_en_proyecto,
+// en comercyo-back-company-projects). acceso trae sus permisos por módulo.
+// El pedido y su proyecto deben estar vivos (sin borrar).
 const accessSql = (table: 'purchase_orders' | 'sales_orders', alias: 'po' | 'so', idColumn: string) => `
-  SELECT ${alias}.id_own_project
+  SELECT ${alias}.id_own_project, permisos_en_proyecto(${alias}.id_own_project, $2::bigint) AS acceso
     FROM ${table} ${alias}
     JOIN own_projects op
       ON op.id_own_project = ${alias}.id_own_project
      AND op.deleted_at IS NULL
-    JOIN users u
-      ON u.email = op.created_by_email
-     AND u.deleted_at IS NULL
    WHERE ${alias}.${idColumn} = $1::bigint
      AND ${alias}.deleted_at IS NULL
-     AND u.id_user = $2
+     AND permisos_en_proyecto(${alias}.id_own_project, $2::bigint) IS NOT NULL
    LIMIT 1`;
 
 export const ORDER_ACCESS_SQL = accessSql('purchase_orders', 'po', 'id_purchase_order');
@@ -28,14 +26,16 @@ const SQL_BY_KIND: Record<OrderKind, string> = {
   sales: SALES_ORDER_ACCESS_SQL,
 };
 
-// Returns the order's id_own_project when the user may access it, else null.
+export type AccesoPedido = { id_own_project: number; acceso: Acceso };
+
+// El proyecto del pedido y el acceso del usuario, o null si no puede verlo.
 export const findAccessibleOrderProject = async (
   db: Queryable,
   orderId: string,
   idUser: number,
   kind: OrderKind = 'purchase'
-): Promise<number | null> => {
+): Promise<AccesoPedido | null> => {
   const result = await db.query(SQL_BY_KIND[kind], [orderId, idUser]);
   const row = result.rows[0];
-  return row ? Number(row.id_own_project) : null;
+  return row?.acceso ? { id_own_project: Number(row.id_own_project), acceso: row.acceso } : null;
 };

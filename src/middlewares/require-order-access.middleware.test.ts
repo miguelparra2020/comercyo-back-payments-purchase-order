@@ -24,7 +24,7 @@ describe('requireOrderAccess', () => {
   });
 
   it('lets the owner of the order project through and exposes id_own_project', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id_own_project: '12' }] });
+    query.mockResolvedValueOnce({ rows: [{ id_own_project: '12', acceso: { duenio: true } }] });
 
     const res = await buildApp(7).request('/purchase-orders/123/payments');
 
@@ -61,11 +61,28 @@ describe('requireOrderAccess', () => {
     }
   );
 
-  it('scopes the check to live order, live project and live user owning it', () => {
+  it('scopes the check to live order, live project and the owner or a team member', () => {
     const sql = ORDER_ACCESS_SQL.replace(/\s+/g, ' ');
     expect(sql).toContain('op.id_own_project = po.id_own_project AND op.deleted_at IS NULL');
-    expect(sql).toContain('u.email = op.created_by_email AND u.deleted_at IS NULL');
-    expect(sql).toContain('po.id_purchase_order = $1::bigint AND po.deleted_at IS NULL AND u.id_user = $2');
+    expect(sql).toContain('po.id_purchase_order = $1::bigint AND po.deleted_at IS NULL');
+    expect(sql).toContain('permisos_en_proyecto(po.id_own_project, $2::bigint) IS NOT NULL');
+  });
+
+  it('answers 404 when the row has no acceso', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id_own_project: '12', acceso: null }] });
+    expect((await buildApp().request('/purchase-orders/123/payments')).status).toBe(404);
+  });
+
+  it('lets a team member with pedidos_compra see the receipts', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id_own_project: '12', acceso: { duenio: false, permisos: { pedidos_compra: ['ver'] } } }] });
+    expect((await buildApp().request('/purchase-orders/123/payments')).status).toBe(200);
+  });
+
+  it('answers 403 to a team member without pedidos_compra', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id_own_project: '12', acceso: { duenio: false, permisos: { clientes: ['ver'] } } }] });
+    const res = await buildApp().request('/purchase-orders/123/payments');
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toContain('pedidos de compra');
   });
 
   it('propagates database errors instead of granting access', async () => {
@@ -94,7 +111,7 @@ describe('requireOrderAccess (abonos de venta)', () => {
   }
 
   it('checks the sales order against the owner of its project', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id_own_project: '9' }] });
+    query.mockResolvedValueOnce({ rows: [{ id_own_project: '9', acceso: { duenio: true } }] });
     const res = await buildSalesApp(7).request('/sales-orders/55/payments');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id_own_project: 9 });
@@ -108,11 +125,16 @@ describe('requireOrderAccess (abonos de venta)', () => {
     expect(await res.json()).toEqual({ success: false, error: 'Not Found', message: 'Sales order not found' });
   });
 
-  it('scopes the sales check to live order, live project and live user owning it', () => {
+  it('scopes the sales check to live order, live project and the owner or a team member', () => {
     const sql = SALES_ORDER_ACCESS_SQL.replace(/\s+/g, ' ');
     expect(sql).toContain('FROM sales_orders so');
     expect(sql).toContain('op.id_own_project = so.id_own_project AND op.deleted_at IS NULL');
-    expect(sql).toContain('u.email = op.created_by_email AND u.deleted_at IS NULL');
-    expect(sql).toContain('so.id_sales_order = $1::bigint AND so.deleted_at IS NULL AND u.id_user = $2');
+    expect(sql).toContain('so.id_sales_order = $1::bigint AND so.deleted_at IS NULL');
+    expect(sql).toContain('permisos_en_proyecto(so.id_own_project, $2::bigint) IS NOT NULL');
+  });
+
+  it('the quick sale (caja rápida) can see sales receipts', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id_own_project: '9', acceso: { duenio: false, permisos: { caja_rapida: ['ver', 'crear'] } } }] });
+    expect((await buildSalesApp().request('/sales-orders/55/payments')).status).toBe(200);
   });
 });
