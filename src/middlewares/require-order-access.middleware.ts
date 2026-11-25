@@ -3,9 +3,13 @@ import type { AuthVariables } from './auth.middleware';
 import { getUsersDb, type Queryable } from '../config/db';
 import { findAccessibleOrderProject } from '../services/order-access.repository';
 import type { OrderKind } from '../config/r2';
+import { mensajeSinPermiso, permisoFaltante, type Acceso } from '../lib/permisos';
+import { REGLAS_POR_TIPO } from './permisos.reglas';
 
 export type OrderAccessVariables = AuthVariables & {
   id_own_project: number;
+  /** Dueño o permisos del miembro del equipo (permisos_en_proyecto). */
+  acceso: Acceso;
 };
 
 export const ORDER_ID_PATTERN = /^[1-9]\d{0,18}$/;
@@ -32,15 +36,22 @@ export function requireOrderAccess(getDb: () => Queryable = getUsersDb, kind: Or
       );
     }
 
-    const idOwnProject = await findAccessibleOrderProject(getDb(), orderId, c.get('id_user'), kind);
-    if (idOwnProject === null) {
+    const pedido = await findAccessibleOrderProject(getDb(), orderId, c.get('id_user'), kind);
+    if (pedido === null) {
       return c.json(
         { success: false, error: 'Not Found', message: NOT_FOUND_MESSAGE[kind] },
         404
       );
     }
 
-    c.set('id_own_project', idOwnProject);
+    // Equipo de la tienda: el dueño puede todo; un miembro, lo que digan sus permisos.
+    const falta = permisoFaltante(pedido.acceso, REGLAS_POR_TIPO[kind], c.req.method, c.req.path);
+    if (falta) {
+      return c.json({ success: false, error: 'Forbidden', message: mensajeSinPermiso(falta) }, 403);
+    }
+
+    c.set('id_own_project', pedido.id_own_project);
+    c.set('acceso', pedido.acceso);
     await next();
   };
 }
