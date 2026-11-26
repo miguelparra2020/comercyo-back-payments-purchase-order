@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { requireOrderAccess, type OrderAccessVariables } from './require-order-access.middleware';
-import { ORDER_ACCESS_SQL, SALES_ORDER_ACCESS_SQL, WORKER_PAYMENT_ACCESS_SQL } from '../services/order-access.repository';
+import { OBRA_PAYMENT_ACCESS_SQL, ORDER_ACCESS_SQL, SALES_ORDER_ACCESS_SQL, WORKER_PAYMENT_ACCESS_SQL } from '../services/order-access.repository';
 
 const query = vi.fn();
 const db = { query } as any;
@@ -161,6 +161,32 @@ describe('requireOrderAccess (abonos de venta)', () => {
     it('sin el módulo trabajadores: 403', async () => {
       query.mockResolvedValueOnce({ rows: [{ id_own_project: '41', acceso: { duenio: false, permisos: { pedidos_compra: ['ver', 'crear'] } } }] });
       expect((await app().request('/worker-payments/5/payments', { method: 'POST' })).status).toBe(403);
+    });
+  });
+
+  describe('pagos de facturas de obra (kind obra)', () => {
+    const app = () => {
+      const a = new Hono<{ Variables: OrderAccessVariables }>();
+      a.use('*', async (c, next) => {
+        c.set('id_user', 7);
+        await next();
+      });
+      a.use('/obra-payments/:orderId/payments/*', requireOrderAccess(() => db, 'obra'));
+      a.post('/obra-payments/:orderId/payments', (c) => c.json({ id_own_project: c.get('id_own_project') }));
+      return a;
+    };
+
+    it('busca el pago en obra_factura_pagos y deja subir a quien tiene presupuestos', async () => {
+      query.mockResolvedValueOnce({ rows: [{ id_own_project: '41', acceso: { duenio: false, permisos: { presupuestos: ['ver', 'crear'] } } }] });
+      const res = await app().request('/obra-payments/12/payments', { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(query).toHaveBeenCalledWith(OBRA_PAYMENT_ACCESS_SQL, ['12', 7]);
+      expect(OBRA_PAYMENT_ACCESS_SQL).toMatch(/FROM obra_factura_pagos p/);
+    });
+
+    it('sin presupuestos: 403', async () => {
+      query.mockResolvedValueOnce({ rows: [{ id_own_project: '41', acceso: { duenio: false, permisos: { trabajadores: ['ver', 'crear'] } } }] });
+      expect((await app().request('/obra-payments/12/payments', { method: 'POST' })).status).toBe(403);
     });
   });
 });

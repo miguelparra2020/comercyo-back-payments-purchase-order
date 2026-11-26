@@ -15,4 +15,8 @@ export const REGLAS_POR_TIPO = {
     { ruta: /\/worker-payments\//, metodos: ['GET', 'HEAD', 'DELETE'], modulo: ['trabajadores', 'presupuestos'] },
     { ruta: /\/worker-payments\//, modulo: ['trabajadores', 'presupuestos'], accion: 'crear' },
   ],
+  obra: [
+    { ruta: /\/obra-payments\//, metodos: ['GET', 'HEAD', 'DELETE'], modulo: 'presupuestos' },
+    { ruta: /\/obra-payments\//, modulo: 'presupuestos', accion: 'crear' },
+  ],
 } as const satisfies Record<string, readonly Regla[]>;

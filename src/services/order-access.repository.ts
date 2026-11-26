@@ -24,10 +24,22 @@ export const SALES_ORDER_ACCESS_SQL = accessSql('sales_orders', 'so', 'id_sales_
 // Pagos a trabajadores (comercyo-back-services): el pago y su tienda.
 export const WORKER_PAYMENT_ACCESS_SQL = accessSql('trabajador_pagos', 'tp', 'id_pago');
 
+// Pagos recibidos de las facturas de obra (comercyo-back-services): el pago,
+// su factura y la tienda. Los pagos anulados no se pueden ver ni tocar.
+export const OBRA_PAYMENT_ACCESS_SQL = `
+  SELECT f.id_own_project, permisos_en_proyecto(f.id_own_project, $2::bigint) AS acceso
+    FROM obra_factura_pagos p
+    JOIN obra_facturas f ON f.id_factura = p.id_factura
+    JOIN own_projects op ON op.id_own_project = f.id_own_project AND op.deleted_at IS NULL
+   WHERE p.id_pago = $1::bigint
+     AND permisos_en_proyecto(f.id_own_project, $2::bigint) IS NOT NULL
+   LIMIT 1`;
+
 const SQL_BY_KIND: Record<OrderKind, string> = {
   purchase: ORDER_ACCESS_SQL,
   sales: SALES_ORDER_ACCESS_SQL,
   worker: WORKER_PAYMENT_ACCESS_SQL,
+  obra: OBRA_PAYMENT_ACCESS_SQL,
 };
 
 export type AccesoPedido = { id_own_project: number; acceso: Acceso };

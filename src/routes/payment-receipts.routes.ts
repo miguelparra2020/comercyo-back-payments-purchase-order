@@ -180,8 +180,8 @@ const headReceipt = async (kind: OrderKind, orderId: string, key: string) => {
   }
 };
 
-const ORDER_LABEL: Record<OrderKind, string> = { purchase: 'purchase order', sales: 'sales order', worker: 'worker payment' };
-const BASE_PATH: Record<OrderKind, string> = { purchase: '/purchase-orders', sales: '/sales-orders', worker: '/worker-payments' };
+const ORDER_LABEL: Record<OrderKind, string> = { purchase: 'purchase order', sales: 'sales order', worker: 'worker payment', obra: 'obra invoice payment' };
+const BASE_PATH: Record<OrderKind, string> = { purchase: '/purchase-orders', sales: '/sales-orders', worker: '/worker-payments', obra: '/obra-payments' };
 
 // kind 'purchase': /purchase-orders/... (pagos de la factura de compra).
 // kind 'sales':    /sales-orders/...    (abonos de la factura de venta), misma
