@@ -25,6 +25,7 @@ const NOT_FOUND_MESSAGE: Record<OrderKind, string> = {
   purchase: 'Purchase order not found',
   sales: 'Sales order not found',
   worker: 'Worker payment not found',
+  obra: 'Obra payment not found',
 };
 
 export function requireOrderAccess(getDb: () => Queryable = getUsersDb, kind: OrderKind = 'purchase') {

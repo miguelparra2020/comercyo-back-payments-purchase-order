@@ -6,12 +6,14 @@ import { requiredEnv } from '../utils/env.utils';
 //   purchase-orders/{orderId}/{receiptKey}  (pagos de la factura de compra)
 //   sales-orders/{orderId}/{receiptKey}     (abonos de la factura de venta)
 //   worker-payments/{idPago}/{receiptKey}   (pagos a trabajadores, comercyo-back-services)
-export type OrderKind = 'purchase' | 'sales' | 'worker';
+//   obra-payments/{idPago}/{receiptKey}     (pagos recibidos de las facturas de obra)
+export type OrderKind = 'purchase' | 'sales' | 'worker' | 'obra';
 
 export const R2_PREFIXES: Record<OrderKind, string> = {
   purchase: 'purchase-orders/',
   sales: 'sales-orders/',
   worker: 'worker-payments/',
+  obra: 'obra-payments/',
 };
 
 export const R2_PREFIX = R2_PREFIXES.purchase;

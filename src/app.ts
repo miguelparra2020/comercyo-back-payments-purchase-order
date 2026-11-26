@@ -94,6 +94,12 @@ apiV1.use('/worker-payments/*', requireAuth());
 apiV1.use('/worker-payments/:orderId/payments/*', requireOrderAccess(undefined, 'worker'));
 registerPaymentReceiptsRoutes(apiV1, 'worker');
 
+// Comprobantes de los pagos recibidos de las facturas de obra (obra_factura_pagos).
+apiV1.use('/obra-payments/*', paymentsRateLimiter);
+apiV1.use('/obra-payments/*', requireAuth());
+apiV1.use('/obra-payments/:orderId/payments/*', requireOrderAccess(undefined, 'obra'));
+registerPaymentReceiptsRoutes(apiV1, 'obra');
+
 // 2026-11-21: el dropshipper ve el comprobante de sus pagos (solo los suyos).
 apiV1.use('/dropi/*', paymentsRateLimiter);
 apiV1.use('/dropi/*', requireAuth());
