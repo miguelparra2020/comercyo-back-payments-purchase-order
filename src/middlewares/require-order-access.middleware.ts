@@ -24,6 +24,7 @@ export const ORDER_ID_PATTERN = /^[1-9]\d{0,18}$/;
 const NOT_FOUND_MESSAGE: Record<OrderKind, string> = {
   purchase: 'Purchase order not found',
   sales: 'Sales order not found',
+  worker: 'Worker payment not found',
 };
 
 export function requireOrderAccess(getDb: () => Queryable = getUsersDb, kind: OrderKind = 'purchase') {

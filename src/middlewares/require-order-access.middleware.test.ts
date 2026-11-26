@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { requireOrderAccess, type OrderAccessVariables } from './require-order-access.middleware';
-import { ORDER_ACCESS_SQL, SALES_ORDER_ACCESS_SQL } from '../services/order-access.repository';
+import { ORDER_ACCESS_SQL, SALES_ORDER_ACCESS_SQL, WORKER_PAYMENT_ACCESS_SQL } from '../services/order-access.repository';
 
 const query = vi.fn();
 const db = { query } as any;
@@ -136,5 +136,31 @@ describe('requireOrderAccess (abonos de venta)', () => {
   it('the quick sale (caja rápida) can see sales receipts', async () => {
     query.mockResolvedValueOnce({ rows: [{ id_own_project: '9', acceso: { duenio: false, permisos: { caja_rapida: ['ver', 'crear'] } } }] });
     expect((await buildSalesApp().request('/sales-orders/55/payments')).status).toBe(200);
+  });
+
+  describe('pagos a trabajadores (kind worker)', () => {
+    const app = () => {
+      const a = new Hono<{ Variables: OrderAccessVariables }>();
+      a.use('*', async (c, next) => {
+        c.set('id_user', 7);
+        await next();
+      });
+      a.use('/worker-payments/:orderId/payments/*', requireOrderAccess(() => db, 'worker'));
+      a.post('/worker-payments/:orderId/payments', (c) => c.json({ id_own_project: c.get('id_own_project') }));
+      return a;
+    };
+
+    it('busca el pago en trabajador_pagos y deja subir a quien tiene trabajadores', async () => {
+      query.mockResolvedValueOnce({ rows: [{ id_own_project: '41', acceso: { duenio: false, permisos: { trabajadores: ['ver', 'crear'] } } }] });
+      const res = await app().request('/worker-payments/5/payments', { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(query).toHaveBeenCalledWith(WORKER_PAYMENT_ACCESS_SQL, ['5', 7]);
+      expect(WORKER_PAYMENT_ACCESS_SQL).toMatch(/FROM trabajador_pagos tp/);
+    });
+
+    it('sin el módulo trabajadores: 403', async () => {
+      query.mockResolvedValueOnce({ rows: [{ id_own_project: '41', acceso: { duenio: false, permisos: { pedidos_compra: ['ver', 'crear'] } } }] });
+      expect((await app().request('/worker-payments/5/payments', { method: 'POST' })).status).toBe(403);
+    });
   });
 });

@@ -88,6 +88,12 @@ apiV1.use('/sales-orders/*', requireAuth());
 apiV1.use('/sales-orders/:orderId/payments/*', requireOrderAccess(undefined, 'sales'));
 registerPaymentReceiptsRoutes(apiV1, 'sales');
 
+// Comprobantes de los pagos a trabajadores (tabla trabajador_pagos).
+apiV1.use('/worker-payments/*', paymentsRateLimiter);
+apiV1.use('/worker-payments/*', requireAuth());
+apiV1.use('/worker-payments/:orderId/payments/*', requireOrderAccess(undefined, 'worker'));
+registerPaymentReceiptsRoutes(apiV1, 'worker');
+
 // 2026-11-21: el dropshipper ve el comprobante de sus pagos (solo los suyos).
 apiV1.use('/dropi/*', paymentsRateLimiter);
 apiV1.use('/dropi/*', requireAuth());

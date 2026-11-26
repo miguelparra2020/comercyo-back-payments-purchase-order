@@ -5,11 +5,13 @@ import { requiredEnv } from '../utils/env.utils';
 // Payment receipts live in a PRIVATE bucket, one folder per order:
 //   purchase-orders/{orderId}/{receiptKey}  (pagos de la factura de compra)
 //   sales-orders/{orderId}/{receiptKey}     (abonos de la factura de venta)
-export type OrderKind = 'purchase' | 'sales';
+//   worker-payments/{idPago}/{receiptKey}   (pagos a trabajadores, comercyo-back-services)
+export type OrderKind = 'purchase' | 'sales' | 'worker';
 
 export const R2_PREFIXES: Record<OrderKind, string> = {
   purchase: 'purchase-orders/',
   sales: 'sales-orders/',
+  worker: 'worker-payments/',
 };
 
 export const R2_PREFIX = R2_PREFIXES.purchase;

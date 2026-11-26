@@ -180,13 +180,15 @@ const headReceipt = async (kind: OrderKind, orderId: string, key: string) => {
   }
 };
 
-const ORDER_LABEL: Record<OrderKind, string> = { purchase: 'purchase order', sales: 'sales order' };
+const ORDER_LABEL: Record<OrderKind, string> = { purchase: 'purchase order', sales: 'sales order', worker: 'worker payment' };
+const BASE_PATH: Record<OrderKind, string> = { purchase: '/purchase-orders', sales: '/sales-orders', worker: '/worker-payments' };
 
 // kind 'purchase': /purchase-orders/... (pagos de la factura de compra).
 // kind 'sales':    /sales-orders/...    (abonos de la factura de venta), misma
 // carpeta privada del bucket bajo sales-orders/{orderId}/.
+// kind 'worker':   /worker-payments/... (pagos a trabajadores), bajo worker-payments/{idPago}/.
 export const registerPaymentReceiptsRoutes = (apiV1: any, kind: OrderKind = 'purchase') => {
-  const base = kind === 'purchase' ? '/purchase-orders' : '/sales-orders';
+  const base = BASE_PATH[kind];
   const label = ORDER_LABEL[kind];
   const collectionPath = `${base}/{orderId}/payments`;
   const itemPath = `${base}/{orderId}/payments/{key}`;
