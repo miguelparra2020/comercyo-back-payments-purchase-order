@@ -5,7 +5,7 @@ import type { Acceso } from '../lib/permisos';
 // El dueño del proyecto o un miembro activo de su equipo (permisos_en_proyecto,
 // en comercyo-back-company-projects). acceso trae sus permisos por módulo.
 // El pedido y su proyecto deben estar vivos (sin borrar).
-const accessSql = (table: 'purchase_orders' | 'sales_orders', alias: 'po' | 'so', idColumn: string) => `
+const accessSql = (table: 'purchase_orders' | 'sales_orders' | 'trabajador_pagos', alias: 'po' | 'so' | 'tp', idColumn: string) => `
   SELECT ${alias}.id_own_project, permisos_en_proyecto(${alias}.id_own_project, $2::bigint) AS acceso
     FROM ${table} ${alias}
     JOIN own_projects op
@@ -21,9 +21,13 @@ export const ORDER_ACCESS_SQL = accessSql('purchase_orders', 'po', 'id_purchase_
 // Abonos de la factura de venta: mismo control sobre el pedido de venta.
 export const SALES_ORDER_ACCESS_SQL = accessSql('sales_orders', 'so', 'id_sales_order');
 
+// Pagos a trabajadores (comercyo-back-services): el pago y su tienda.
+export const WORKER_PAYMENT_ACCESS_SQL = accessSql('trabajador_pagos', 'tp', 'id_pago');
+
 const SQL_BY_KIND: Record<OrderKind, string> = {
   purchase: ORDER_ACCESS_SQL,
   sales: SALES_ORDER_ACCESS_SQL,
+  worker: WORKER_PAYMENT_ACCESS_SQL,
 };
 
 export type AccesoPedido = { id_own_project: number; acceso: Acceso };
